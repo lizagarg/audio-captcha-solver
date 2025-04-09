@@ -1,35 +1,34 @@
 import os
+import librosa
+import noisereduce as nr
 import speech_recognition as sr
+import soundfile as sf
 
-# Folder containing audio CAPTCHAs (only .wav files)
-captcha_folder = "captchas"
-output_folder = "output"
+def reduce_noise(audio_path):
+    y, sr_ = librosa.load(audio_path, sr=None)
+    reduced = nr.reduce_noise(y=y, sr=sr_)
+    
+    cleaned_path = os.path.join("output", "cleaned.wav")
+    sf.write(cleaned_path, reduced, sr_)
+    return cleaned_path
 
-# Create output folder if it doesn't exist
-os.makedirs(output_folder, exist_ok=True)
+def decode_audio(audio_path):
+    recognizer = sr.Recognizer()
+    with sr.AudioFile(audio_path) as source:
+        audio = recognizer.record(source)
+    try:
+        return recognizer.recognize_google(audio)
+    except sr.UnknownValueError:
+        return "Could not understand audio"
+    except sr.RequestError as e:
+        return f"Could not request results; {e}"
 
-# Initialize recognizer
-recognizer = sr.Recognizer()
+if __name__ == "__main__":
+    input_path = "captchas/test1.wav"
+    cleaned_path = reduce_noise(input_path)
+    result = decode_audio(cleaned_path)
 
-# Loop through each .wav file in the captchas folder
-for filename in os.listdir(captcha_folder):
-    if filename.endswith(".wav"):
-        file_path = os.path.join(captcha_folder, filename)
-        print(f"\n🔊 Processing {filename}...")
+    with open("output/test1.wav.txt", "w") as f:
+        f.write(result)
 
-        with sr.AudioFile(file_path) as source:
-            audio_data = recognizer.record(source)
-
-            try:
-                # Recognize speech using Google Web Speech API
-                decoded_text = recognizer.recognize_google(audio_data)
-                print(f"✅ Decoded Text: {decoded_text}")
-
-                # Save result to output folder
-                with open(os.path.join(output_folder, filename + ".txt"), "w") as f:
-                    f.write(decoded_text)
-
-            except sr.UnknownValueError:
-                print("❌ Could not understand the audio.")
-            except sr.RequestError as e:
-                print(f"⚠️ Could not request results; {e}")
+    print("Decoded CAPTCHA:", result)
